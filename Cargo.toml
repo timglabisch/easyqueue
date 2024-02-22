@@ -18,6 +18,7 @@ tracing-subscriber = "0.3.*"
 serde = { version = "1.0.196", features = ["derive"] }
 thiserror = "1.*"
 async-trait = "0.1.77"
+slog = "2"
 
 
 [build-dependencies]

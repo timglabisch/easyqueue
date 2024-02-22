@@ -3,6 +3,8 @@ mod message;
 mod error;
 mod storage;
 mod raft;
+mod raft_node;
+mod raft_service;
 
 use std::time::Duration;
 use tokio::task::JoinHandle;

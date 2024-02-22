@@ -281,6 +281,7 @@ dependencies = [
  "prost 0.12.3",
  "raft",
  "serde",
+ "slog",
  "thiserror",
  "tokio",
  "tonic",
