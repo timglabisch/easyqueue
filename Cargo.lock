@@ -275,6 +275,7 @@ name = "easyqueue"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "clap",
  "futures",
  "prost 0.12.3",

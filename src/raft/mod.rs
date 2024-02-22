@@ -2,6 +2,7 @@ mod mailbox;
 mod message;
 mod error;
 mod storage;
+mod raft;
 
 use std::time::Duration;
 use tokio::task::JoinHandle;

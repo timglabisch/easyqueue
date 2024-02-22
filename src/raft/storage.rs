@@ -3,6 +3,12 @@ use raft::storage::MemStorage as CoreMemStorage;
 use raft::GetEntriesContext;
 use crate::raft::error::RaftResult;
 
+pub trait Store {
+    async fn apply(&mut self, message: &[u8]) -> RaftResult<Vec<u8>>;
+    async fn snapshot(&self) -> RaftResult<Vec<u8>>;
+    async fn restore(&mut self, snapshot: &[u8]) -> RaftResult<()>;
+}
+
 pub trait LogStore: Storage {
     fn append(&mut self, entries: &[Entry]) -> RaftResult<()>;
     fn set_hard_state(&mut self, hard_state: &HardState) -> RaftResult<()>;
