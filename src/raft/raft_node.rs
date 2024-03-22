@@ -206,7 +206,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
     }
 
     pub fn id(&self) -> u64 {
-        self.raft.id
+        self.inner.raft.id
     }
 
     pub async fn add_peer(&mut self, addr: &str, id: u64) -> RaftResult<()> {
@@ -216,7 +216,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
     }
 
     fn leader(&self) -> u64 {
-        self.raft.leader_id
+        self.inner.raft.leader_id
     }
 
     fn peer_addrs(&self) -> HashMap<u64, String> {
@@ -260,6 +260,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
     }
 
     pub async fn run(mut self) -> RaftResult<()> {
+
         let mut heartbeat = Duration::from_millis(100);
         let mut now = Instant::now();
 
@@ -287,12 +288,12 @@ impl<S: Store + 'static + Send> RaftNode<S> {
                         debug!("received request from: {}", change.get_node_id());
                         let seq = self.seq.fetch_add(1, Ordering::Relaxed);
                         client_send.insert(seq, chan);
-                        self.propose_conf_change(serialize(&seq).unwrap(), change)?;
+                        self.inner.propose_conf_change(serialize(&seq).unwrap(), change)?;
                     }
                 }
                 Ok(Some(Message::Raft(m))) => {
-                    debug!("raft message: to={} from={}", self.raft.id, m.from);
-                    if let Ok(_a) = self.step(*m) {};
+                    debug!("raft message: to={} from={}", self.inner.raft.id, m.from);
+                    if let Ok(_a) = self.inner.step(*m) {};
                 }
                 Ok(Some(Message::Propose { proposal, chan })) => {
                     if !self.is_leader() {
@@ -309,7 +310,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
                         let seq = self.seq.fetch_add(1, Ordering::Relaxed);
                         client_send.insert(seq, chan);
                         let seq = serialize(&seq).unwrap();
-                        self.propose(seq, proposal).unwrap();
+                        self.inner.propose(seq, proposal).unwrap();
                     }
                 }
                 Ok(Some(Message::RequestId { addr, chan })) => {
@@ -327,7 +328,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
                     }
                 }
                 Ok(Some(Message::ReportUnreachable { node_id })) => {
-                    self.report_unreachable(node_id);
+                    self.inner.report_unreachable(node_id);
                 }
                 Ok(_) => unreachable!(),
                 Err(_) => (),
@@ -337,7 +338,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
             now = Instant::now();
             if elapsed > heartbeat {
                 heartbeat = Duration::from_millis(100);
-                self.tick();
+                self.inner.tick();
             } else {
                 heartbeat -= elapsed;
             }
@@ -350,11 +351,11 @@ impl<S: Store + 'static + Send> RaftNode<S> {
         &mut self,
         client_send: &mut HashMap<u64, oneshot::Sender<RaftResponse>>,
     ) -> RaftResult<()> {
-        if !self.has_ready() {
+        if !self.inner.has_ready() {
             return Ok(());
         }
 
-        let mut ready = self.ready();
+        let mut ready = self.inner.ready();
 
         if !ready.messages().is_empty() {
             // Send out the messages.
@@ -363,7 +364,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
         if *ready.snapshot() != Snapshot::default() {
             let snapshot = ready.snapshot();
             self.store.restore(snapshot.get_data()).await?;
-            let store = self.mut_store();
+            let store = self.inner.mut_store();
             store.apply_snapshot(snapshot.clone())?;
         }
 
@@ -372,13 +373,13 @@ impl<S: Store + 'static + Send> RaftNode<S> {
 
         if !ready.entries().is_empty() {
             let entries = &ready.entries()[..];
-            let store = self.mut_store();
+            let store = self.inner.mut_store();
             store.append(entries)?;
         }
 
         if let Some(hs) = ready.hs() {
             // Raft HardState changed, and we need to persist it.
-            let store = self.mut_store();
+            let store = self.inner.mut_store();
             store.set_hard_state(hs)?;
         }
 
@@ -387,10 +388,10 @@ impl<S: Store + 'static + Send> RaftNode<S> {
             self.send_messages(ready.take_persisted_messages());
         }
 
-        let mut light_rd = self.advance(ready);
+        let mut light_rd = self.inner.advance(ready);
 
         if let Some(commit) = light_rd.commit_index() {
-            let store = self.mut_store();
+            let store = self.inner.mut_store();
             store.set_hard_state_comit(commit)?;
         }
 
@@ -401,7 +402,7 @@ impl<S: Store + 'static + Send> RaftNode<S> {
         self.handle_committed_entries(light_rd.take_committed_entries(), client_send)
             .await?;
 
-        self.advance_apply();
+        self.inner.advance_apply();
 
         Ok(())
     }
@@ -477,11 +478,11 @@ impl<S: Store + 'static + Send> RaftNode<S> {
             _ => unimplemented!(),
         }
 
-        if let Ok(cs) = self.apply_conf_change(&change) {
-            let last_applied = self.raft.raft_log.applied;
+        if let Ok(cs) = self.inner.apply_conf_change(&change) {
+            let last_applied = self.inner.raft.raft_log.applied;
             let snapshot = self.store.snapshot().await?;
             {
-                let store = self.mut_store();
+                let store = self.inner.mut_store();
                 store.set_conf_state(&cs)?;
                 store.compact(last_applied)?;
                 store.create_snapshot(snapshot)?;
@@ -518,9 +519,9 @@ impl<S: Store + 'static + Send> RaftNode<S> {
         if Instant::now() > self.last_snap_time + Duration::from_secs(15) {
             info!("creating backup..");
             self.last_snap_time = Instant::now();
-            let last_applied = self.raft.raft_log.applied;
+            let last_applied = self.inner.raft.raft_log.applied;
             let snapshot = self.store.snapshot().await?;
-            let store = self.mut_store();
+            let store = self.inner.mut_store();
             store.compact(last_applied).unwrap();
             let _ = store.create_snapshot(snapshot);
         }
@@ -528,16 +529,3 @@ impl<S: Store + 'static + Send> RaftNode<S> {
     }
 }
 
-impl<S: Store> Deref for RaftNode<S> {
-    type Target = RawNode<MemStorage>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<S: Store> DerefMut for RaftNode<S> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
-    }
-}
