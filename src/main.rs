@@ -13,7 +13,6 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use slog::{Logger, slog_o};
 use tokio::task::JoinHandle;
-use crate::raft::EbRaft;
 use crate::raft::error::RaftResult;
 use crate::raft::storage::Store;
 use slog::*;
