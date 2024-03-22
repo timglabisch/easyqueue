@@ -1,8 +1,10 @@
+use async_trait::async_trait;
 use raft::prelude::*;
 use raft::storage::MemStorage as CoreMemStorage;
 use raft::GetEntriesContext;
 use crate::raft::error::RaftResult;
 
+#[async_trait]
 pub trait Store {
     async fn apply(&mut self, message: &[u8]) -> RaftResult<Vec<u8>>;
     async fn snapshot(&self) -> RaftResult<Vec<u8>>;
