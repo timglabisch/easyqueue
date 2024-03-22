@@ -4,6 +4,7 @@ use raft::eraftpb::{ConfChange, ConfChangeType};
 use tokio::sync::mpsc;
 use tonic::Request;
 use tracing::{info, warn};
+use crate::raft::error::RaftError;
 use crate::raft::mailbox::Mailbox;
 use crate::raft::message::Message;
 use crate::raft::raft_node::RaftNode;
@@ -74,7 +75,7 @@ impl<S: Store + Send + Sync + 'static> Raft<S> {
                 ResultCode::Ok => {
                     break deserialize(&response.data)?;
                 }
-                ResultCode::Error => return Err(Error::JoinError),
+                ResultCode::Error => return Err(RaftError::JoinError),
             }
         };
 
