@@ -6,7 +6,7 @@ use crate::raft::error::{RaftError, RaftResult};
 use crate::raft::message::{Message, RaftResponse};
 
 #[derive(Clone)]
-pub struct Mailbox(mpsc::Sender<Message>);
+pub struct Mailbox(pub mpsc::Sender<Message>);
 
 impl Mailbox {
     /// sends a proposal message to commit to the node. This fails if the current node is not the

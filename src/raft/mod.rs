@@ -5,6 +5,7 @@ mod storage;
 mod raft;
 mod raft_node;
 mod raft_service;
+mod raft_server;
 
 use std::time::Duration;
 use tokio::task::JoinHandle;

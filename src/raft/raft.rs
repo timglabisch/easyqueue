@@ -4,10 +4,11 @@ use raft::eraftpb::{ConfChange, ConfChangeType};
 use tokio::sync::mpsc;
 use tonic::Request;
 use tracing::{info, warn};
-use crate::raft::error::RaftError;
+use crate::raft::error::{RaftError, RaftResult};
 use crate::raft::mailbox::Mailbox;
 use crate::raft::message::Message;
 use crate::raft::raft_node::RaftNode;
+use crate::raft::raft_server::RaftServer;
 use crate::raft::raft_service::{RequestIdArgs, ResultCode};
 use crate::raft::raft_service::raft_service_client::RaftServiceClient;
 use crate::raft::storage::Store;
@@ -17,17 +18,19 @@ pub struct Raft<S: Store + 'static> {
     tx: mpsc::Sender<Message>,
     rx: mpsc::Receiver<Message>,
     addr: String,
+    logger: slog::Logger,
 }
 
 impl<S: Store + Send + Sync + 'static> Raft<S> {
     /// creates a new node with the given address and store.
-    pub fn new(addr: String, store: S) -> Self {
+    pub fn new(addr: String, store: S, logger: slog::Logger) -> Self {
         let (tx, rx) = mpsc::channel(100);
         Self {
             store,
             tx,
             rx,
             addr,
+            logger,
         }
     }
 
@@ -38,7 +41,7 @@ impl<S: Store + Send + Sync + 'static> Raft<S> {
 
     /// Create a new leader for the cluster, with id 1. There has to be exactly one node in the
     /// cluster that is initialised that way
-    pub async fn lead(self) -> Result<()> {
+    pub async fn lead(self) -> RaftResult<()> {
         let addr = self.addr.clone();
         let node = RaftNode::new_leader(self.rx, self.tx.clone(), self.store, &self.logger);
         let server = RaftServer::new(self.tx, addr);
@@ -52,7 +55,7 @@ impl<S: Store + Send + Sync + 'static> Raft<S> {
 
     /// Tries to join a new cluster at `addr`, getting an id from the leader, or finding it if
     /// `addr` is not the current leader of the cluster
-    pub async fn join(self, addr: String) -> Result<()> {
+    pub async fn join(self, addr: String) -> RaftResult<()> {
         // 1. try to discover the leader and obtain an id from it.
         info!("attempting to join peer cluster at {}", addr);
         let mut leader_addr = addr.to_string();

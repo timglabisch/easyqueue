@@ -288,6 +288,7 @@ dependencies = [
  "bincode",
  "clap",
  "futures",
+ "log",
  "prost 0.12.3",
  "raft",
  "serde",
